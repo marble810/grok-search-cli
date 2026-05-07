@@ -6,8 +6,6 @@ namespace XaiSearchCli.Models;
 [JsonSerializable(typeof(XaiResponse))]
 [JsonSerializable(typeof(CliOutput))]
 [JsonSerializable(typeof(XaiTool))]
-[JsonSerializable(typeof(WebSearchFilters))]
-[JsonSerializable(typeof(XSearchUserFilters))]
 [JsonSerializable(typeof(XaiOutputItem))]
 [JsonSerializable(typeof(XaiContentBlock))]
 [JsonSerializable(typeof(XaiAnnotation))]

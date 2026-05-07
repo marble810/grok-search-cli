@@ -25,6 +25,11 @@
     GitHub repository in "owner/repo" format.
     Default: marble810/grok-search-cli
 
+.PARAMETER AssetDir
+    Optional local directory containing release-like archives and checksum files.
+    When provided, the installer resolves assets from disk instead of GitHub Releases.
+    Requires -Version.
+
 .EXAMPLE
     .\install.ps1
 
@@ -33,13 +38,17 @@
 
 .EXAMPLE
     .\install.ps1 -Version v1.0.0 -InstallDir D:\tools\grok-search-cli
+
+.EXAMPLE
+    .\install.ps1 -Version v1.0.0 -AssetDir .\artifacts -InstallDir D:\tools\grok-search-cli
 #>
 
 [CmdletBinding()]
 param(
     [string]$Version,
     [string]$InstallDir,
-    [string]$Repo = "marble810/grok-search-cli"
+    [string]$Repo = "marble810/grok-search-cli",
+    [string]$AssetDir
 )
 
 $ErrorActionPreference = "Stop"
@@ -85,6 +94,34 @@ function Get-DownloadUrls {
     }
 }
 
+function Get-LocalAssetPaths {
+    param([string]$AssetDir, [string]$Version, [string]$Rid)
+
+    if (-not (Test-Path -LiteralPath $AssetDir -PathType Container)) {
+        throw "Local asset directory not found: $AssetDir"
+    }
+
+    $resolvedDir = (Resolve-Path -LiteralPath $AssetDir).Path
+    $archiveName = "grok-search-cli_${Version}_${Rid}.zip"
+    $checksumName = "grok-search-cli_${Version}_${Rid}.sha256"
+    $archivePath = Join-Path $resolvedDir $archiveName
+    $checksumPath = Join-Path $resolvedDir $checksumName
+
+    if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
+        throw "Missing local asset '$archiveName' in $resolvedDir"
+    }
+
+    if (-not (Test-Path -LiteralPath $checksumPath -PathType Leaf)) {
+        throw "Missing local asset '$checksumName' in $resolvedDir"
+    }
+
+    return @{
+        AssetDir = $resolvedDir
+        Archive = $archivePath
+        Checksum = $checksumPath
+    }
+}
+
 function Get-BinaryName { return "grok-search-cli.exe" }
 
 # ---------------------------------------------------------------------------
@@ -95,6 +132,10 @@ Write-Host "=== grok-search-cli Installer ===" -ForegroundColor Cyan
 Write-Host ""
 
 # 1. Resolve version
+if ($AssetDir -and -not $Version) {
+    throw "Local asset installs require -Version so the expected archive name is deterministic."
+}
+
 if (-not $Version) {
     $Version = Get-LatestVersion -Repo $Repo
     Write-Host "Latest release: $Version" -ForegroundColor Green
@@ -113,10 +154,18 @@ Write-Host "Install target: $InstallDir" -ForegroundColor Green
 $Rid = Get-PlatformRid
 Write-Host "Platform RID: $Rid" -ForegroundColor Green
 
-# 4. Build download URLs
-$urls = Get-DownloadUrls -Repo $Repo -Version $Version -Rid $Rid
-$archiveUrl = $urls.Archive
-$checksumUrl = $urls.Checksum
+# 4. Resolve asset source
+$localAssets = $null
+if ($AssetDir) {
+    $localAssets = Get-LocalAssetPaths -AssetDir $AssetDir -Version $Version -Rid $Rid
+    Write-Host "Asset source: local directory $($localAssets.AssetDir)" -ForegroundColor Green
+}
+else {
+    $urls = Get-DownloadUrls -Repo $Repo -Version $Version -Rid $Rid
+    $archiveUrl = $urls.Archive
+    $checksumUrl = $urls.Checksum
+    Write-Host "Asset source: GitHub Releases ($Repo)" -ForegroundColor Green
+}
 
 # 5. Download
 $tmpDir = Get-TempDir
@@ -124,20 +173,28 @@ $archivePath = Join-Path $tmpDir "grok-search-cli_${Version}_${Rid}.zip"
 $checksumPath = Join-Path $tmpDir "grok-search-cli_${Version}_${Rid}.sha256"
 
 Write-Host ""
-Write-Host "Downloading archive..."
-try {
-    Invoke-WebRequest -Uri $archiveUrl -OutFile $archivePath -UseBasicParsing
+if ($localAssets) {
+    Write-Host "Copying local archive..."
+    Copy-Item -LiteralPath $localAssets.Archive -Destination $archivePath -Force
+    Write-Host "Copying local checksum..."
+    Copy-Item -LiteralPath $localAssets.Checksum -Destination $checksumPath -Force
 }
-catch {
-    throw "Failed to download archive from $archiveUrl : $_"
-}
+else {
+    Write-Host "Downloading archive..."
+    try {
+        Invoke-WebRequest -Uri $archiveUrl -OutFile $archivePath -UseBasicParsing
+    }
+    catch {
+        throw "Failed to download archive from $archiveUrl : $_"
+    }
 
-Write-Host "Downloading checksum..."
-try {
-    Invoke-WebRequest -Uri $checksumUrl -OutFile $checksumPath -UseBasicParsing
-}
-catch {
-    throw "Failed to download checksum from $checksumUrl : $_"
+    Write-Host "Downloading checksum..."
+    try {
+        Invoke-WebRequest -Uri $checksumUrl -OutFile $checksumPath -UseBasicParsing
+    }
+    catch {
+        throw "Failed to download checksum from $checksumUrl : $_"
+    }
 }
 
 # 6. Verify checksum

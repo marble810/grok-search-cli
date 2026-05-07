@@ -22,17 +22,6 @@ public class XaiTool
     [JsonPropertyName("name")]
     public required string Name { get; set; }
 
-    [JsonPropertyName("search_filters")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public WebSearchFilters? SearchFilters { get; set; }
-
-    [JsonPropertyName("user_handle_filters")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public XSearchUserFilters? UserHandleFilters { get; set; }
-}
-
-public class WebSearchFilters
-{
     [JsonPropertyName("allowed_domains")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? AllowedDomains { get; set; }
@@ -40,17 +29,14 @@ public class WebSearchFilters
     [JsonPropertyName("excluded_domains")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? ExcludedDomains { get; set; }
-}
 
-public class XSearchUserFilters
-{
-    [JsonPropertyName("allowed")]
+    [JsonPropertyName("allowed_x_handles")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<string>? Allowed { get; set; }
+    public List<string>? AllowedXHandles { get; set; }
 
-    [JsonPropertyName("excluded")]
+    [JsonPropertyName("excluded_x_handles")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public List<string>? Excluded { get; set; }
+    public List<string>? ExcludedXHandles { get; set; }
 
     [JsonPropertyName("from_date")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -59,4 +45,12 @@ public class XSearchUserFilters
     [JsonPropertyName("to_date")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ToDate { get; set; }
+
+    [JsonPropertyName("enable_image_understanding")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? EnableImageUnderstanding { get; set; }
+
+    [JsonPropertyName("enable_video_understanding")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? EnableVideoUnderstanding { get; set; }
 }

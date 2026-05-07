@@ -26,6 +26,7 @@ public class DiscoveryCommandTests
             Assert.Contains("CREDENTIALS", output);
             Assert.Contains("OUTPUT", output);
             Assert.Contains("--tool", output);
+            Assert.Contains("--model", output);
             Assert.Contains("auth login", output);
             Assert.Contains("help [command]", output);
             Assert.Contains("describe", output);
@@ -75,6 +76,7 @@ public class DiscoveryCommandTests
             Assert.Contains("EXAMPLES", output);
             Assert.Contains("OUTPUT", output);
             Assert.Contains("--tool", output);
+            Assert.Contains("--model", output);
             Assert.DoesNotContain("AUTH", output);
             Assert.DoesNotContain("auth login", output);
         }
@@ -173,6 +175,11 @@ public class DiscoveryCommandTests
         Assert.NotNull(toolFlag);
         Assert.True(toolFlag.Required);
         Assert.Equal(["web", "x", "both"], toolFlag.Values);
+
+        var modelFlag = searchCmd.Flags.Find(f => f.Name == "--model");
+        Assert.NotNull(modelFlag);
+        Assert.False(modelFlag.Required);
+        Assert.False(modelFlag.Repeatable);
 
         var allowDomainFlag = searchCmd.Flags.Find(f => f.Name == "--allow-domain");
         Assert.NotNull(allowDomainFlag);

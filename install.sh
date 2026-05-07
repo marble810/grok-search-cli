@@ -7,6 +7,7 @@
 #   ./install.sh                     # latest release
 #   ./install.sh --version v1.0.0    # pinned version
 #   ./install.sh --dir ~/bin          # custom install directory
+#   ./install.sh --version v1.0.0 --asset-dir ./artifacts/local-release
 #
 # No credentials or secrets are collected during installation.
 # After installation, set up credentials via:
@@ -21,6 +22,7 @@ set -euo pipefail
 REPO="marble810/grok-search-cli"
 VERSION=""
 INSTALL_DIR=""
+ASSET_DIR=""
 
 # ---------------------------------------------------------------------------
 # Parse arguments
@@ -35,18 +37,25 @@ while [[ $# -gt 0 ]]; do
             INSTALL_DIR="$2"
             shift 2
             ;;
+        --asset-dir)
+            ASSET_DIR="$2"
+            shift 2
+            ;;
         --help|-h)
-            echo "Usage: $0 [--version <tag>] [--dir <path>]"
+            echo "Usage: $0 [--version <tag>] [--dir <path>] [--asset-dir <path>]"
             echo ""
             echo "  --version <tag>   Install a specific release (e.g., v1.0.0)."
             echo "                    Defaults to the latest stable release."
             echo "  --dir <path>      Installation directory."
             echo "                    Default: \$HOME/.grok-search-cli/bin"
+            echo "  --asset-dir <path>"
+            echo "                    Local directory with release-like archive and checksum files."
+            echo "                    Requires --version and skips GitHub downloads."
             exit 0
             ;;
         *)
             echo "error: unknown argument '$1'" >&2
-            echo "Usage: $0 [--version <tag>] [--dir <path>]" >&2
+            echo "Usage: $0 [--version <tag>] [--dir <path>] [--asset-dir <path>]" >&2
             exit 1
             ;;
     esac
@@ -105,6 +114,11 @@ echo "Install target: ${INSTALL_DIR}"
 # ---------------------------------------------------------------------------
 # Resolve version
 # ---------------------------------------------------------------------------
+if [[ -n "$ASSET_DIR" && -z "$VERSION" ]]; then
+    echo "error: local asset installs require --version so the expected archive name is deterministic" >&2
+    exit 1
+fi
+
 if [[ -z "$VERSION" ]]; then
     echo "Fetching latest release version from GitHub..."
     VERSION="$(curl -sSfL "https://api.github.com/repos/${REPO}/releases/latest" \
@@ -124,10 +138,33 @@ fi
 # ---------------------------------------------------------------------------
 ARCHIVE_NAME="grok-search-cli_${VERSION}_${RID}.tar.gz"
 CHECKSUM_NAME="grok-search-cli_${VERSION}_${RID}.sha256"
-BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
+if [[ -n "$ASSET_DIR" ]]; then
+    if [[ ! -d "$ASSET_DIR" ]]; then
+        echo "error: local asset directory not found: ${ASSET_DIR}" >&2
+        exit 1
+    fi
 
-ARCHIVE_URL="${BASE_URL}/${ARCHIVE_NAME}"
-CHECKSUM_URL="${BASE_URL}/${CHECKSUM_NAME}"
+    ASSET_DIR="$(cd "$ASSET_DIR" && pwd)"
+    ARCHIVE_SOURCE="${ASSET_DIR}/${ARCHIVE_NAME}"
+    CHECKSUM_SOURCE="${ASSET_DIR}/${CHECKSUM_NAME}"
+
+    if [[ ! -f "$ARCHIVE_SOURCE" ]]; then
+        echo "error: missing local asset '${ARCHIVE_NAME}' in ${ASSET_DIR}" >&2
+        exit 1
+    fi
+
+    if [[ ! -f "$CHECKSUM_SOURCE" ]]; then
+        echo "error: missing local asset '${CHECKSUM_NAME}' in ${ASSET_DIR}" >&2
+        exit 1
+    fi
+
+    echo "Asset source: local directory ${ASSET_DIR}"
+else
+    BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
+    ARCHIVE_URL="${BASE_URL}/${ARCHIVE_NAME}"
+    CHECKSUM_URL="${BASE_URL}/${CHECKSUM_NAME}"
+    echo "Asset source: GitHub Releases (${REPO})"
+fi
 
 # ---------------------------------------------------------------------------
 # Download
@@ -137,11 +174,19 @@ cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
 
 echo ""
-echo "Downloading archive..."
-curl -sSfL "$ARCHIVE_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}"
+if [[ -n "$ASSET_DIR" ]]; then
+    echo "Copying local archive..."
+    cp "$ARCHIVE_SOURCE" "${TMP_DIR}/${ARCHIVE_NAME}"
 
-echo "Downloading checksum..."
-curl -sSfL "$CHECKSUM_URL" -o "${TMP_DIR}/${CHECKSUM_NAME}"
+    echo "Copying local checksum..."
+    cp "$CHECKSUM_SOURCE" "${TMP_DIR}/${CHECKSUM_NAME}"
+else
+    echo "Downloading archive..."
+    curl -sSfL "$ARCHIVE_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}"
+
+    echo "Downloading checksum..."
+    curl -sSfL "$CHECKSUM_URL" -o "${TMP_DIR}/${CHECKSUM_NAME}"
+fi
 
 # ---------------------------------------------------------------------------
 # Verify checksum

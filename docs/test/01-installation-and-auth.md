@@ -1,5 +1,84 @@
 # 01 - 安装与认证测试
 
+## 1.0 纯本地生命周期冒烟（开发阶段）
+
+> 本节不依赖 GitHub raw 脚本或已发布 Release。开发阶段优先执行本节；1.1 节保留为发布后二次验证。
+
+### 1.0.1 PowerShell：本地打包 -> 安装 -> 认证 -> 卸载
+
+**快捷入口**:
+```powershell
+./start-local-test-session.ps1
+```
+
+运行后，当前 PowerShell 会话会直接获得一个指向 temp 安装目录的 `grok-search-cli` 命令。
+
+**前提**:
+```powershell
+Set-Location <repo-root>
+$Version = "v0.1.0"
+$AssetDir = Join-Path (Get-Location) "artifacts\local-release"
+$InstallDir = Join-Path $env:TEMP "grok-search-cli-local\bin"
+pwsh ./package-local-release.ps1 -Version $Version
+```
+
+**WHEN**: 运行
+```powershell
+pwsh ./install.ps1 -Version $Version -AssetDir $AssetDir -InstallDir $InstallDir
+$env:Path = "$InstallDir;$env:Path"
+grok-search-cli auth logout
+grok-search-cli auth login
+grok-search-cli auth status
+pwsh ./uninstall.ps1 -InstallDir $InstallDir
+```
+
+**THEN**:
+- [ ] 安装过程输出包含 `Asset source: local directory`
+- [ ] 安装过程输出包含 `Checksum verified.`
+- [ ] 安装过程不会访问 GitHub raw 脚本或 Release 下载地址
+- [ ] `grok-search-cli auth login` 成功后，`auth status` 显示凭证已配置
+- [ ] 卸载后 `grok-search-cli.exe` 从 `$InstallDir` 中移除
+- [ ] 卸载输出明确说明不会修改 `XAI_API_KEY`、`.env` 或 auth-managed credential storage
+
+**清理**:
+```powershell
+Remove-Item -Recurse -Force (Split-Path $InstallDir -Parent)
+```
+
+### 1.0.2 Bash：本地打包 -> 安装 -> 认证 -> 卸载
+
+**前提**:
+```bash
+cd /path/to/grok-search-cli
+VERSION="v1.0.0"
+ASSET_DIR="$(pwd)/artifacts/local-release"
+INSTALL_DIR="/tmp/grok-search-cli-local/bin"
+./package-local-release.sh --version "$VERSION"
+```
+
+**WHEN**: 运行
+```bash
+./install.sh --version "$VERSION" --asset-dir "$ASSET_DIR" --dir "$INSTALL_DIR"
+export PATH="$INSTALL_DIR:$PATH"
+grok-search-cli auth logout
+grok-search-cli auth login
+grok-search-cli auth status
+./uninstall.sh --dir "$INSTALL_DIR"
+```
+
+**THEN**:
+- [ ] 安装过程输出包含 `Asset source: local directory`
+- [ ] 安装过程输出包含 `Checksum verified.`
+- [ ] 安装过程不会访问 GitHub raw 脚本或 Release 下载地址
+- [ ] `grok-search-cli auth login` 成功后，`auth status` 显示凭证已配置
+- [ ] 卸载后 `grok-search-cli` 从 `$INSTALL_DIR` 中移除
+- [ ] 卸载输出明确说明不会修改 `XAI_API_KEY`、`.env` 或 auth-managed credential storage
+
+**清理**:
+```bash
+rm -rf /tmp/grok-search-cli-local
+```
+
 ## 1.1 安装脚本测试（仅限发布后）
 
 > 以下测试在发布二进制可用后执行。开发阶段可跳过本节。

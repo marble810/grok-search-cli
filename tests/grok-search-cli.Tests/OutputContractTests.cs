@@ -32,10 +32,10 @@ public class OutputContractTests
             ]
         };
 
-        var output = CliLogic.BuildOutput("web", response);
+        var output = CliLogic.BuildOutput("web", CliLogic.DefaultModel, response);
 
         Assert.Equal("web", output.Tool);
-        Assert.Equal("grok-4-1-fast-reasoning", output.Model);
+        Assert.Equal(CliLogic.DefaultModel, output.Model);
         Assert.Equal("the answer", output.Answer);
         Assert.Single(output.Citations);
         Assert.Equal("https://example.com", output.Citations[0].Url);
@@ -61,8 +61,9 @@ public class OutputContractTests
             ]
         };
 
-        var output = CliLogic.BuildOutput("x", response);
+        var output = CliLogic.BuildOutput("x", "grok-4.1", response);
         Assert.Null(output.Id);
+        Assert.Equal("grok-4.1", output.Model);
     }
 
     [Fact]
@@ -71,7 +72,7 @@ public class OutputContractTests
         var output = new CliOutput
         {
             Tool = "web",
-            Model = "grok-4-1-fast-reasoning",
+            Model = CliLogic.DefaultModel,
             Answer = "test answer",
             Citations = [new CliCitation { Url = "https://x.ai", Title = "xAI" }],
             Id = "resp_1"
@@ -158,7 +159,7 @@ public class OutputContractTests
             ]
         };
 
-        var output = CliLogic.BuildOutput("both", response);
+        var output = CliLogic.BuildOutput("both", CliLogic.DefaultModel, response);
         Assert.Equal("both", output.Tool);
     }
 }

@@ -12,7 +12,7 @@ try
 catch (CommandException ex)
 {
     stderr.WriteLine($"error: {ex.Message}");
-    Environment.Exit(1);
+    Environment.Exit(ex.ExitCode);
 }
 
 static async Task MainInner(string[] args, TextWriter stderr)
@@ -39,21 +39,22 @@ static async Task MainInner(string[] args, TextWriter stderr)
 
     var tool = CliLogic.ParseTool(args);
     var query = ReadQuery(args);
-    var filters = CliLogic.ParseFilters(args);
+    var model = CliLogic.ParseModel(args);
+    var filters = CliLogic.ParseFilters(tool, args);
 
     var apiKey = Credentials.Resolve(stderr);
     var client = new XaiClient(apiKey);
 
     var xaiRequest = new XaiRequest
     {
-        Model = CliLogic.Model,
+        Model = model,
         Input = query,
         Tools = CliLogic.BuildTools(tool, filters)
     };
 
     var response = await client.SearchAsync(xaiRequest, stderr);
 
-    var output = CliLogic.BuildOutput(tool, response);
+    var output = CliLogic.BuildOutput(tool, model, response);
     Console.Out.WriteLine(CliLogic.SerializeOutput(output));
 }
 

@@ -1,7 +1,5 @@
-## Purpose
+## MODIFIED Requirements
 
-Define the supported search invocation surface, query input rules, and filter flags for the grok-search-cli runtime.
-## Requirements
 ### Requirement: Search command executes explicit search modes
 The CLI SHALL expose search as the canonical runtime action, SHALL require an explicit `--tool` value of `web`, `x`, or `both` for search invocations, SHALL accept an optional `--model` parameter for search invocations, SHALL default to model `grok-4.3` when no model is provided, and SHALL reserve explicit discovery entrypoints that do not trigger a search request.
 
@@ -26,25 +24,6 @@ The CLI SHALL expose search as the canonical runtime action, SHALL require an ex
 - **WHEN** a user invokes an explicit discovery entrypoint such as help or machine-readable usage export
 - **THEN** the CLI does not require `--tool`
 - **THEN** the CLI does not attempt a search request
-
-### Requirement: Search command accepts exactly one query source
-For search invocations, the CLI SHALL accept the search query from either a positional argument or stdin, and SHALL reject invocations that provide both or neither.
-
-#### Scenario: Query from argument
-- **WHEN** an agent provides a positional query and no stdin input for a search invocation
-- **THEN** the CLI uses the positional query text for the request
-
-#### Scenario: Query from stdin
-- **WHEN** an agent pipes query text through stdin and omits the positional query for a search invocation
-- **THEN** the CLI uses the stdin text for the request
-
-#### Scenario: Ambiguous query input
-- **WHEN** an agent provides both stdin input and a positional query for a search invocation
-- **THEN** the CLI exits with a configuration error instead of guessing precedence
-
-#### Scenario: Discovery invocation needs no query
-- **WHEN** a user invokes a discovery entrypoint instead of a search invocation
-- **THEN** the CLI does not require a positional query or stdin input
 
 ### Requirement: Search command exposes stable filter flags
 The CLI SHALL expose explicit flags for the supported search filters instead of accepting raw passthrough JSON, SHALL support the documented Web Search and X Search parameter set covered by this contract, and SHALL reject invalid flag combinations before sending the API request.
@@ -76,4 +55,3 @@ The CLI SHALL expose explicit flags for the supported search filters instead of 
 #### Scenario: Unsupported raw payload injection
 - **WHEN** an agent attempts to provide arbitrary raw request JSON
 - **THEN** the CLI rejects that input because it is outside the first-release contract
-

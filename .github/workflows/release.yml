@@ -55,15 +55,15 @@ jobs:
       - name: Checksum (Unix)
         if: runner.os != 'Windows'
         run: |
-          cd "publish/${{ matrix.rid }}"
-          sha256sum grok-search-cli > "${{ github.workspace }}/grok-search-cli_${{ github.ref_name }}_${{ matrix.rid }}.sha256"
+          sha256sum "${{ github.workspace }}/grok-search-cli_${{ github.ref_name }}_${{ matrix.rid }}.tar.gz" > "${{ github.workspace }}/grok-search-cli_${{ github.ref_name }}_${{ matrix.rid }}.sha256"
 
       - name: Checksum (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $hash = (Get-FileHash "publish/${{ matrix.rid }}/grok-search-cli.exe" -Algorithm SHA256).Hash.ToLower()
-          "$hash  grok-search-cli.exe" | Out-File -Encoding ASCII `
+          $archiveName = "grok-search-cli_${{ github.ref_name }}_${{ matrix.rid }}.zip"
+          $hash = (Get-FileHash "${{ github.workspace }}/$archiveName" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $archiveName" | Out-File -Encoding ASCII `
             "${{ github.workspace }}/grok-search-cli_${{ github.ref_name }}_${{ matrix.rid }}.sha256"
 
       - uses: actions/upload-artifact@v4

@@ -13,7 +13,8 @@ public class RequestShapingTests
 
         Assert.Single(tools);
         Assert.Equal("web_search", tools[0].Type);
-        Assert.Null(tools[0].UserHandleFilters);
+        Assert.Null(tools[0].AllowedXHandles);
+        Assert.Null(tools[0].ExcludedXHandles);
     }
 
     [Fact]
@@ -24,7 +25,8 @@ public class RequestShapingTests
 
         Assert.Single(tools);
         Assert.Equal("x_search", tools[0].Type);
-        Assert.Null(tools[0].SearchFilters);
+        Assert.Null(tools[0].AllowedDomains);
+        Assert.Null(tools[0].ExcludedDomains);
     }
 
     [Fact]
@@ -45,8 +47,7 @@ public class RequestShapingTests
         var tools = CliLogic.BuildTools("web", filters);
 
         var webTool = tools[0];
-        Assert.NotNull(webTool.SearchFilters);
-        Assert.Equal(["example.com"], webTool.SearchFilters!.AllowedDomains);
+        Assert.Equal(["example.com"], webTool.AllowedDomains);
     }
 
     [Fact]
@@ -56,8 +57,7 @@ public class RequestShapingTests
         var tools = CliLogic.BuildTools("x", filters);
 
         var xTool = tools[0];
-        Assert.NotNull(xTool.UserHandleFilters);
-        Assert.Equal(["spam"], xTool.UserHandleFilters!.Excluded);
+        Assert.Equal(["spam"], xTool.ExcludedXHandles);
     }
 
     [Fact]
@@ -67,9 +67,71 @@ public class RequestShapingTests
         var tools = CliLogic.BuildTools("x", filters);
 
         var xTool = tools[0];
-        Assert.NotNull(xTool.UserHandleFilters);
-        Assert.Equal("2026-01-01", xTool.UserHandleFilters!.FromDate);
-        Assert.Equal("2026-01-31", xTool.UserHandleFilters.ToDate);
+        Assert.Equal("2026-01-01", xTool.FromDate);
+        Assert.Equal("2026-01-31", xTool.ToDate);
+    }
+
+    [Fact]
+    public void ParseModel_ReturnsDefaultWhenMissing()
+    {
+        var model = CliLogic.ParseModel(["--tool", "web"]);
+
+        Assert.Equal(CliLogic.DefaultModel, model);
+    }
+
+    [Fact]
+    public void ParseModel_ReturnsExplicitValue()
+    {
+        var model = CliLogic.ParseModel(["--tool", "web", "--model", "grok-4.1"]);
+
+        Assert.Equal("grok-4.1", model);
+    }
+
+    [Fact]
+    public void ParseModel_ThrowsWhenValueMissing()
+    {
+        Assert.Throws<CommandException>(() =>
+            CliLogic.ParseModel(["--tool", "web", "--model"]));
+    }
+
+    [Fact]
+    public void WebSearchWithImageUnderstanding_SetsFlag()
+    {
+        var filters = CliLogic.ParseFilters("web", ["--tool", "web", "--enable-image-understanding"]);
+        var tools = CliLogic.BuildTools("web", filters);
+
+        Assert.True(tools[0].EnableImageUnderstanding);
+    }
+
+    [Fact]
+    public void XSearchWithMediaUnderstanding_SetsFlags()
+    {
+        var filters = CliLogic.ParseFilters("x", ["--tool", "x", "--enable-image-understanding", "--enable-video-understanding"]);
+        var tools = CliLogic.BuildTools("x", filters);
+
+        Assert.True(tools[0].EnableImageUnderstanding);
+        Assert.True(tools[0].EnableVideoUnderstanding);
+    }
+
+    [Fact]
+    public void ParseFilters_RejectsMutuallyExclusiveWebFilters()
+    {
+        Assert.Throws<CommandException>(() =>
+            CliLogic.ParseFilters("web", ["--tool", "web", "--allow-domain", "good.com", "--exclude-domain", "bad.com"]));
+    }
+
+    [Fact]
+    public void ParseFilters_RejectsMutuallyExclusiveXFilters()
+    {
+        Assert.Throws<CommandException>(() =>
+            CliLogic.ParseFilters("x", ["--tool", "x", "--allow-handle", "good", "--exclude-handle", "bad"]));
+    }
+
+    [Fact]
+    public void ParseFilters_RejectsXOnlyFlagsForWebTool()
+    {
+        Assert.Throws<CommandException>(() =>
+            CliLogic.ParseFilters("web", ["--tool", "web", "--enable-video-understanding"]));
     }
 
     [Fact]
@@ -114,27 +176,27 @@ public class RequestShapingTests
     [Fact]
     public void ParseFilters_WithDomainFilters()
     {
-        var filters = CliLogic.ParseFilters(
-            ["--tool", "web", "--allow-domain", "good.com", "--exclude-domain", "bad.com"]);
+        var filters = CliLogic.ParseFilters("web",
+            ["--tool", "web", "--allow-domain", "good.com"]);
 
         Assert.Equal(["good.com"], filters.WebAllowed);
-        Assert.Equal(["bad.com"], filters.WebExcluded);
+        Assert.Null(filters.WebExcluded);
     }
 
     [Fact]
     public void ParseFilters_WithHandleFilters()
     {
-        var filters = CliLogic.ParseFilters(
-            ["--tool", "x", "--allow-handle", "author", "--exclude-handle", "troll"]);
+        var filters = CliLogic.ParseFilters("x",
+            ["--tool", "x", "--allow-handle", "author"]);
 
         Assert.Equal(["author"], filters.XAllowed);
-        Assert.Equal(["troll"], filters.XExcluded);
+        Assert.Null(filters.XExcluded);
     }
 
     [Fact]
     public void ParseFilters_WithDateFilters()
     {
-        var filters = CliLogic.ParseFilters(
+        var filters = CliLogic.ParseFilters("x",
             ["--tool", "x", "--from-date", "2026-01-01", "--to-date", "2026-01-31"]);
 
         Assert.Equal("2026-01-01", filters.XFromDate);

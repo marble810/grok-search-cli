@@ -161,6 +161,13 @@ public static class CommandRegistry
                         },
                         new FlagInfo
                         {
+                            Name = "--model",
+                            Required = false,
+                            Repeatable = false,
+                            Description = "Model to use for the xAI Responses request (default: grok-4.3)"
+                        },
+                        new FlagInfo
+                        {
                             Name = "--allow-domain",
                             Required = false,
                             Repeatable = true,
@@ -200,6 +207,20 @@ public static class CommandRegistry
                             Required = false,
                             Repeatable = false,
                             Description = "X filter: include results on or before this date (YYYY-MM-DD)"
+                        },
+                        new FlagInfo
+                        {
+                            Name = "--enable-image-understanding",
+                            Required = false,
+                            Repeatable = false,
+                            Description = "Enable image understanding for supported web and X search results"
+                        },
+                        new FlagInfo
+                        {
+                            Name = "--enable-video-understanding",
+                            Required = false,
+                            Repeatable = false,
+                            Description = "Enable video understanding for X search results"
                         }
                     ],
                     QueryRules =
@@ -208,12 +229,12 @@ public static class CommandRegistry
                         "If both are provided, the CLI exits with a configuration error"
                     ],
                     CredentialPrerequisites = ["XAI_API_KEY"],
-                    OutputMode = "One JSON document on stdout with fields: tool, model, answer, citations, id",
+                    OutputMode = "One JSON document on stdout with fields: tool, model, answer, citations, id; waiting messages and errors are written to stderr",
                     Examples =
                     [
-                        new ExampleInfo { Description = "Web search", Command = "grok-search-cli --tool web \"latest AI news\"" },
-                        new ExampleInfo { Description = "X search with handle filter", Command = "grok-search-cli --tool x \"product launch\" --allow-handle techcrunch --from-date 2026-01-01" },
-                        new ExampleInfo { Description = "Combined search with domain filter", Command = "grok-search-cli --tool both --exclude-domain spam.com \"topic\"" },
+                        new ExampleInfo { Description = "Web search", Command = "grok-search-cli --tool web --model grok-4.3 \"latest AI news\"" },
+                        new ExampleInfo { Description = "X search with handle filter", Command = "grok-search-cli --tool x \"product launch\" --allow-handle techcrunch --from-date 2026-01-01 --enable-video-understanding" },
+                        new ExampleInfo { Description = "Combined search with domain filter", Command = "grok-search-cli --tool both --exclude-domain spam.com --enable-image-understanding \"topic\"" },
                         new ExampleInfo { Description = "Query from stdin", Command = "printf \"query\" | grok-search-cli --tool web" }
                     ]
                 },
@@ -307,6 +328,7 @@ USAGE
 
 SEARCH
   --tool (web|x|both)          Required. Select web, X, or both.
+    --model <name>               Optional. Defaults to grok-4.3.
   <query>                      Search query (positional arg or stdin, not both)
   --allow-domain <domain>      Allowed web domain (repeatable)
   --exclude-domain <domain>    Excluded web domain (repeatable)
@@ -314,6 +336,8 @@ SEARCH
   --exclude-handle <handle>    Excluded X handle (repeatable)
   --from-date <yyyy-mm-dd>     X search start date
   --to-date <yyyy-mm-dd>       X search end date
+    --enable-image-understanding Enable image understanding for web/X search
+    --enable-video-understanding Enable video understanding for X search
 
 AUTH
   auth login                   Set up API credentials (interactive or --api-key-stdin)
@@ -329,7 +353,7 @@ CREDENTIALS
 
 OUTPUT
   Search results: JSON on stdout
-  Errors and logs: stderr
+    Waiting messages, errors, and logs: stderr
 """;
     }
 
@@ -346,25 +370,29 @@ USAGE
 
 FLAGS
   --tool (web|x|both)          Required. Select web, X, or both.
+    --model <name>               Optional. Defaults to grok-4.3.
   --allow-domain <domain>      Allowed web domain (repeatable)
   --exclude-domain <domain>    Excluded web domain (repeatable)
   --allow-handle <handle>      Allowed X handle (repeatable)
   --exclude-handle <handle>    Excluded X handle (repeatable)
   --from-date <yyyy-mm-dd>     X search start date
   --to-date <yyyy-mm-dd>       X search end date
+    --enable-image-understanding Enable image understanding for web/X search
+    --enable-video-understanding Enable video understanding for X search
 
 QUERY RULES
   Provide the query as a positional argument or via stdin, not both.
   If both are provided, the CLI exits with a configuration error.
 
 EXAMPLES
-  {{CliName}} --tool web "latest AI news"
-  {{CliName}} --tool x "product launch" --allow-handle techcrunch
-  {{CliName}} --tool both "topic" --exclude-domain spam.com
+    {{CliName}} --tool web --model grok-4.3 "latest AI news"
+    {{CliName}} --tool x "product launch" --allow-handle techcrunch --enable-video-understanding
+    {{CliName}} --tool both "topic" --exclude-domain spam.com --enable-image-understanding
   echo "query" | {{CliName}} --tool web
 
 OUTPUT
-  One JSON document on stdout with fields: tool, model, answer, citations, id
+    One JSON document on stdout with fields: tool, model, answer, citations, id
+    Waiting messages, errors, and logs: stderr
 """;
     }
 
