@@ -1,5 +1,143 @@
 # grok-search-cli
 
+> [中文](#简介) | [English](#introduction)
+
+---
+
+## 简介
+
+通过 xAI API 在命令行中搜索网页和 X（Twitter）的工具。以结构化 JSON 返回答案和来源引用，适合 AI Agent 或 Shell 管道调用。
+
+## 安装
+
+### Windows (PowerShell)
+
+```powershell
+iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/install.ps1) }"
+```
+
+### Linux / macOS (Bash)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/install.sh | bash
+```
+
+安装完成后，配置 xAI API Key：
+
+```bash
+grok-search-cli auth login
+```
+
+或直接设置环境变量 `XAI_API_KEY`。
+
+完整安装选项、校验和及卸载说明见 [INSTALL.md](INSTALL.md)。
+
+## 使用
+
+```bash
+# 网页搜索
+grok-search-cli --tool web "最新 AI 新闻"
+
+# X（Twitter）搜索
+grok-search-cli --tool x "产品发布" --allow-handle techcrunch --from-date 2026-01-01
+
+# 网页 + X 联合搜索
+grok-search-cli --tool both "主题"
+
+# 通过 stdin 传入查询
+printf "我的查询" | grok-search-cli --tool web
+
+# 过滤域名
+grok-search-cli --tool web --allow-domain reuters.com --exclude-domain spam.com "主题"
+```
+
+**输出** — stdout 输出一个 JSON 对象：
+
+```json
+{
+  "tool": "web",
+  "model": "grok-4.3",
+  "answer": "...",
+  "citations": [{ "url": "https://...", "title": "..." }]
+}
+```
+
+stderr 仅用于诊断信息。退出码：`0` 成功 · `1` 输入/配置错误 · `2` API 错误。
+
+### 发现机制
+
+```bash
+grok-search-cli help              # 根帮助
+grok-search-cli help search       # 搜索全部参数
+grok-search-cli describe          # 机器可读 JSON 契约
+```
+
+### 主要参数
+
+| 参数 | 说明 |
+|---|---|
+| `--tool web\|x\|both` | **必填。** 搜索来源 |
+| `--model <name>` | 指定模型（默认：`grok-4.3`） |
+| `--allow-domain <d>` | 网页搜索白名单域名（可重复） |
+| `--exclude-domain <d>` | 网页搜索黑名单域名（可重复） |
+| `--allow-handle <h>` | X 账号白名单（可重复） |
+| `--exclude-handle <h>` | X 账号黑名单（可重复） |
+| `--from-date <YYYY-MM-DD>` | X 搜索最早日期 |
+| `--to-date <YYYY-MM-DD>` | X 搜索最晚日期 |
+| `--enable-image-understanding` | 启用图片分析 |
+| `--enable-video-understanding` | 启用视频分析（仅限 X） |
+
+## 开发
+
+### 前置条件
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+
+### 构建
+
+```bash
+dotnet build src/grok-search-cli
+```
+
+### 源码运行
+
+```bash
+dotnet run --project src/grok-search-cli -- --tool web "测试查询"
+```
+
+### 测试
+
+```bash
+dotnet test tests/grok-search-cli.Tests
+```
+
+### AOT 发布
+
+```bash
+dotnet publish src/grok-search-cli -c Release
+# 二进制：src/grok-search-cli/bin/Release/net10.0/publish/grok-search-cli
+```
+
+发布和打 Tag 流程见 [RELEASE.md](RELEASE.md)。
+
+## AI Agent 集成
+
+本项目内置 [Agent Skill](skills/grok-search-cli/SKILL.md)，可教会 AI Agent 如何调用本工具。用以下命令安装到你的编程助手：
+
+```bash
+npx skills add marble810/grok-search-cli
+```
+
+支持 Claude Code、Cursor、GitHub Copilot、Codex 及 [50+ 其他 Agent](https://github.com/vercel-labs/skills#supported-agents)。
+
+## 许可证
+
+MIT
+
+---
+
+## Introduction
+
 A command-line tool for searching the web and X (Twitter) via the xAI API. Returns structured JSON with an answer and source citations, designed for use by AI agents or shell pipelines.
 
 ## Installation
