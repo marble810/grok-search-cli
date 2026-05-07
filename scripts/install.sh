@@ -16,6 +16,68 @@
 
 set -euo pipefail
 
+download_with_retry() {
+    local url="$1"
+    local output_path="$2"
+    local description="$3"
+    local max_attempts="${4:-3}"
+    local attempt
+
+    for ((attempt=1; attempt<=max_attempts; attempt++)); do
+        rm -f "$output_path"
+        if curl -fsSL "$url" -o "$output_path"; then
+            return 0
+        fi
+
+        if [[ "$attempt" -eq "$max_attempts" ]]; then
+            echo "error: failed to download ${description} from ${url} after ${max_attempts} attempts" >&2
+            return 1
+        fi
+
+        echo "warning: download attempt ${attempt}/${max_attempts} failed for ${description} from ${url}. Retrying..." >&2
+    done
+}
+
+compute_sha256() {
+    local file_path="$1"
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$file_path" | awk '{print tolower($1)}'
+        return 0
+    fi
+
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$file_path" | awk '{print tolower($1)}'
+        return 0
+    fi
+
+    echo "error: neither sha256sum nor shasum is available for checksum verification" >&2
+    return 1
+}
+
+resolve_expected_hash() {
+    local checksum_path="$1"
+    local archive_name="$2"
+
+    awk -v archive_name="$archive_name" '
+        {
+            hash=$1
+            $1=""
+            sub(/^[[:space:]]+[*]?/, "", $0)
+            if ($0 == archive_name && hash ~ /^[A-Fa-f0-9]{64}$/) {
+                print tolower(hash)
+                found=1
+                exit
+            }
+        }
+        END {
+            if (!found) {
+                exit 1
+            }
+        }
+    ' "$checksum_path"
+}
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -138,6 +200,7 @@ fi
 # ---------------------------------------------------------------------------
 ARCHIVE_NAME="grok-search-cli_${VERSION}_${RID}.tar.gz"
 CHECKSUM_NAME="grok-search-cli_${VERSION}_${RID}.sha256"
+COMBINED_CHECKSUM_NAME="checksums_${VERSION}.txt"
 if [[ -n "$ASSET_DIR" ]]; then
     if [[ ! -d "$ASSET_DIR" ]]; then
         echo "error: local asset directory not found: ${ASSET_DIR}" >&2
@@ -147,14 +210,15 @@ if [[ -n "$ASSET_DIR" ]]; then
     ASSET_DIR="$(cd "$ASSET_DIR" && pwd)"
     ARCHIVE_SOURCE="${ASSET_DIR}/${ARCHIVE_NAME}"
     CHECKSUM_SOURCE="${ASSET_DIR}/${CHECKSUM_NAME}"
+    COMBINED_CHECKSUM_SOURCE="${ASSET_DIR}/${COMBINED_CHECKSUM_NAME}"
 
     if [[ ! -f "$ARCHIVE_SOURCE" ]]; then
         echo "error: missing local asset '${ARCHIVE_NAME}' in ${ASSET_DIR}" >&2
         exit 1
     fi
 
-    if [[ ! -f "$CHECKSUM_SOURCE" ]]; then
-        echo "error: missing local asset '${CHECKSUM_NAME}' in ${ASSET_DIR}" >&2
+    if [[ ! -f "$CHECKSUM_SOURCE" && ! -f "$COMBINED_CHECKSUM_SOURCE" ]]; then
+        echo "error: missing local asset '${CHECKSUM_NAME}' or '${COMBINED_CHECKSUM_NAME}' in ${ASSET_DIR}" >&2
         exit 1
     fi
 
@@ -163,6 +227,7 @@ else
     BASE_URL="https://github.com/${REPO}/releases/download/${VERSION}"
     ARCHIVE_URL="${BASE_URL}/${ARCHIVE_NAME}"
     CHECKSUM_URL="${BASE_URL}/${CHECKSUM_NAME}"
+    COMBINED_CHECKSUM_URL="${BASE_URL}/${COMBINED_CHECKSUM_NAME}"
     echo "Asset source: GitHub Releases (${REPO})"
 fi
 
@@ -172,29 +237,51 @@ fi
 TMP_DIR="$(mktemp -d /tmp/grok-search-cli-install.XXXXXX)"
 cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
+DOWNLOADED_CHECKSUM_PATH="${TMP_DIR}/${CHECKSUM_NAME}"
+CHECKSUM_SOURCE_LABEL=""
 
 echo ""
 if [[ -n "$ASSET_DIR" ]]; then
     echo "Copying local archive..."
     cp "$ARCHIVE_SOURCE" "${TMP_DIR}/${ARCHIVE_NAME}"
 
-    echo "Copying local checksum..."
-    cp "$CHECKSUM_SOURCE" "${TMP_DIR}/${CHECKSUM_NAME}"
+    if [[ -f "$CHECKSUM_SOURCE" ]]; then
+        echo "Copying local checksum..."
+        cp "$CHECKSUM_SOURCE" "$DOWNLOADED_CHECKSUM_PATH"
+        CHECKSUM_SOURCE_LABEL="direct checksum"
+    else
+        echo "Copying combined checksum manifest..."
+        cp "$COMBINED_CHECKSUM_SOURCE" "$DOWNLOADED_CHECKSUM_PATH"
+        CHECKSUM_SOURCE_LABEL="combined checksum manifest"
+    fi
 else
     echo "Downloading archive..."
-    curl -sSfL "$ARCHIVE_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}"
+    download_with_retry "$ARCHIVE_URL" "${TMP_DIR}/${ARCHIVE_NAME}" "archive"
 
     echo "Downloading checksum..."
-    curl -sSfL "$CHECKSUM_URL" -o "${TMP_DIR}/${CHECKSUM_NAME}"
+    if download_with_retry "$CHECKSUM_URL" "$DOWNLOADED_CHECKSUM_PATH" "checksum"; then
+        CHECKSUM_SOURCE_LABEL="direct checksum"
+    else
+        echo "warning: direct checksum download failed. Falling back to combined checksum manifest..." >&2
+        download_with_retry "$COMBINED_CHECKSUM_URL" "$DOWNLOADED_CHECKSUM_PATH" "combined checksum manifest"
+        CHECKSUM_SOURCE_LABEL="combined checksum manifest"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
 # Verify checksum
 # ---------------------------------------------------------------------------
 echo "Verifying checksum..."
-# sha256sum produces: "<hash>  <filename>"
-(cd "$TMP_DIR" && sha256sum --check --status "$CHECKSUM_NAME")
-echo "Checksum verified."
+EXPECTED_HASH="$(resolve_expected_hash "$DOWNLOADED_CHECKSUM_PATH" "$ARCHIVE_NAME")" || {
+    echo "error: checksum entry for '${ARCHIVE_NAME}' not found in ${DOWNLOADED_CHECKSUM_PATH}" >&2
+    exit 1
+}
+ACTUAL_HASH="$(compute_sha256 "${TMP_DIR}/${ARCHIVE_NAME}")"
+if [[ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]]; then
+    echo "error: checksum mismatch. expected ${EXPECTED_HASH}, got ${ACTUAL_HASH}" >&2
+    exit 1
+fi
+echo "Checksum verified using ${CHECKSUM_SOURCE_LABEL}."
 
 # ---------------------------------------------------------------------------
 # Extract binary

@@ -184,6 +184,17 @@ public class ReleaseSmokeTests
     }
 
     [Fact]
+    public void InstallScript_Bash_HasChecksumRetryAndManifestFallback()
+    {
+        var content = File.ReadAllText(ResolveRepoFile("install.sh"));
+
+        Assert.Contains("download_with_retry", content);
+        Assert.Contains("COMBINED_CHECKSUM_NAME", content);
+        Assert.Contains("Falling back to combined checksum manifest", content);
+        Assert.Contains("resolve_expected_hash", content);
+    }
+
+    [Fact]
     public void InstallScript_PowerShell_HasVersionSupport()
     {
         var searchPaths = new[]
@@ -347,8 +358,11 @@ public class ReleaseSmokeTests
         var searchPaths = new[]
         {
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", fileName),
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", "scripts", fileName),
             Path.Combine(Directory.GetCurrentDirectory(), fileName),
+            Path.Combine(Directory.GetCurrentDirectory(), "scripts", fileName),
             Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", fileName),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", "scripts", fileName),
         };
 
         var resolved = searchPaths.FirstOrDefault(File.Exists);
@@ -470,7 +484,59 @@ public class ReleaseSmokeTests
             Assert.Equal(0, result.ExitCode);
             Assert.True(File.Exists(Path.Combine(installDir, "grok-search-cli.exe")));
             Assert.Contains("Asset source: local directory", result.StandardOutput);
-            Assert.Contains("Checksum verified.", result.StandardOutput);
+            Assert.Contains("Checksum verified using direct checksum.", result.StandardOutput);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void InstallScript_PowerShell_FallsBackToCombinedChecksumManifest()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var scriptPath = ResolveRepoFile("install.ps1");
+        var tempRoot = Path.Combine(Path.GetTempPath(), "grok-search-cli-install-ps-fallback", Guid.NewGuid().ToString("n"));
+        var assetDir = Path.Combine(tempRoot, "assets");
+        var installDir = Path.Combine(tempRoot, "bin");
+        const string version = "v1.0.0";
+        const string rid = "win-x64";
+        var archiveName = $"grok-search-cli_{version}_{rid}.zip";
+        var combinedChecksumName = $"checksums_{version}.txt";
+        var archivePath = Path.Combine(assetDir, archiveName);
+        var combinedChecksumPath = Path.Combine(assetDir, combinedChecksumName);
+        var payloadDir = Path.Combine(tempRoot, "payload");
+        var binaryPath = Path.Combine(payloadDir, "grok-search-cli.exe");
+
+        Directory.CreateDirectory(assetDir);
+        Directory.CreateDirectory(payloadDir);
+        File.WriteAllText(binaryPath, "stub binary");
+        ZipFile.CreateFromDirectory(payloadDir, archivePath);
+
+        using (var stream = File.OpenRead(archivePath))
+        {
+            var hash = Convert.ToHexStringLower(SHA256.HashData(stream));
+            File.WriteAllText(combinedChecksumPath, $"{hash}  {archiveName}\n");
+        }
+
+        try
+        {
+            var result = RunProcess(
+                "pwsh",
+                $"-NoProfile -File \"{scriptPath}\" -Version {version} -AssetDir \"{assetDir}\" -InstallDir \"{installDir}\"");
+
+            Assert.Equal(0, result.ExitCode);
+            Assert.True(File.Exists(Path.Combine(installDir, "grok-search-cli.exe")));
+            Assert.Contains("Copying combined checksum manifest...", result.StandardOutput);
+            Assert.Contains("Checksum verified using combined checksum manifest.", result.StandardOutput);
         }
         finally
         {

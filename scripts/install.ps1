@@ -88,9 +88,11 @@ function Get-DownloadUrls {
     $base = "https://github.com/$Repo/releases/download/$Version"
     $archiveName = "grok-search-cli_${Version}_${Rid}.zip"
     $checksumName = "grok-search-cli_${Version}_${Rid}.sha256"
+    $combinedChecksumName = "checksums_${Version}.txt"
     return @{
-        Archive  = "$base/$archiveName"
-        Checksum = "$base/$checksumName"
+        Archive          = "$base/$archiveName"
+        Checksum         = "$base/$checksumName"
+        CombinedChecksum = "$base/$combinedChecksumName"
     }
 }
 
@@ -104,25 +106,76 @@ function Get-LocalAssetPaths {
     $resolvedDir = (Resolve-Path -LiteralPath $AssetDir).Path
     $archiveName = "grok-search-cli_${Version}_${Rid}.zip"
     $checksumName = "grok-search-cli_${Version}_${Rid}.sha256"
+    $combinedChecksumName = "checksums_${Version}.txt"
     $archivePath = Join-Path $resolvedDir $archiveName
     $checksumPath = Join-Path $resolvedDir $checksumName
+    $combinedChecksumPath = Join-Path $resolvedDir $combinedChecksumName
 
     if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
         throw "Missing local asset '$archiveName' in $resolvedDir"
     }
 
-    if (-not (Test-Path -LiteralPath $checksumPath -PathType Leaf)) {
-        throw "Missing local asset '$checksumName' in $resolvedDir"
+    $hasDirectChecksum = Test-Path -LiteralPath $checksumPath -PathType Leaf
+    $hasCombinedChecksum = Test-Path -LiteralPath $combinedChecksumPath -PathType Leaf
+    if (-not $hasDirectChecksum -and -not $hasCombinedChecksum) {
+        throw "Missing local asset '$checksumName' or '$combinedChecksumName' in $resolvedDir"
     }
 
     return @{
         AssetDir = $resolvedDir
         Archive = $archivePath
-        Checksum = $checksumPath
+        Checksum = if ($hasDirectChecksum) { $checksumPath } else { $null }
+        CombinedChecksum = if ($hasCombinedChecksum) { $combinedChecksumPath } else { $null }
     }
 }
 
 function Get-BinaryName { return "grok-search-cli.exe" }
+
+function Invoke-DownloadWithRetry {
+    param(
+        [string]$Uri,
+        [string]$OutFile,
+        [string]$Description,
+        [int]$MaxAttempts = 3
+    )
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            if (Test-Path -LiteralPath $OutFile) {
+                Remove-Item -LiteralPath $OutFile -Force
+            }
+
+            Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing
+            return
+        }
+        catch {
+            if ($attempt -eq $MaxAttempts) {
+                throw "Failed to download $Description from $Uri after $MaxAttempts attempts: $_"
+            }
+
+            Write-Warning "Download attempt $attempt/$MaxAttempts failed for $Description from $Uri. Retrying..."
+        }
+    }
+}
+
+function Resolve-ExpectedHashFromChecksumFile {
+    param(
+        [string]$ChecksumPath,
+        [string]$ArchiveName
+    )
+
+    $lines = Get-Content -LiteralPath $ChecksumPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    foreach ($line in $lines) {
+        if ($line -match '^(?<hash>[A-Fa-f0-9]{64})\s+[* ]?(?<name>.+)$') {
+            $name = $Matches.name.Trim()
+            if ($name -eq $ArchiveName) {
+                return $Matches.hash.ToLower()
+            }
+        }
+    }
+
+    throw "Checksum entry for '$ArchiveName' not found in $ChecksumPath"
+}
 
 # ---------------------------------------------------------------------------
 # Main
@@ -164,47 +217,57 @@ else {
     $urls = Get-DownloadUrls -Repo $Repo -Version $Version -Rid $Rid
     $archiveUrl = $urls.Archive
     $checksumUrl = $urls.Checksum
+    $combinedChecksumUrl = $urls.CombinedChecksum
     Write-Host "Asset source: GitHub Releases ($Repo)" -ForegroundColor Green
 }
 
 # 5. Download
 $tmpDir = Get-TempDir
-$archivePath = Join-Path $tmpDir "grok-search-cli_${Version}_${Rid}.zip"
+$archiveName = "grok-search-cli_${Version}_${Rid}.zip"
+$archivePath = Join-Path $tmpDir $archiveName
 $checksumPath = Join-Path $tmpDir "grok-search-cli_${Version}_${Rid}.sha256"
+$checksumSource = $null
 
 Write-Host ""
 if ($localAssets) {
     Write-Host "Copying local archive..."
     Copy-Item -LiteralPath $localAssets.Archive -Destination $archivePath -Force
-    Write-Host "Copying local checksum..."
-    Copy-Item -LiteralPath $localAssets.Checksum -Destination $checksumPath -Force
+
+    if ($localAssets.Checksum) {
+        Write-Host "Copying local checksum..."
+        Copy-Item -LiteralPath $localAssets.Checksum -Destination $checksumPath -Force
+        $checksumSource = "direct checksum"
+    }
+    else {
+        Write-Host "Copying combined checksum manifest..."
+        Copy-Item -LiteralPath $localAssets.CombinedChecksum -Destination $checksumPath -Force
+        $checksumSource = "combined checksum manifest"
+    }
 }
 else {
     Write-Host "Downloading archive..."
-    try {
-        Invoke-WebRequest -Uri $archiveUrl -OutFile $archivePath -UseBasicParsing
-    }
-    catch {
-        throw "Failed to download archive from $archiveUrl : $_"
-    }
+    Invoke-DownloadWithRetry -Uri $archiveUrl -OutFile $archivePath -Description "archive"
 
     Write-Host "Downloading checksum..."
     try {
-        Invoke-WebRequest -Uri $checksumUrl -OutFile $checksumPath -UseBasicParsing
+        Invoke-DownloadWithRetry -Uri $checksumUrl -OutFile $checksumPath -Description "checksum"
+        $checksumSource = "direct checksum"
     }
     catch {
-        throw "Failed to download checksum from $checksumUrl : $_"
+        Write-Warning "Direct checksum download failed. Falling back to combined checksum manifest..."
+        Invoke-DownloadWithRetry -Uri $combinedChecksumUrl -OutFile $checksumPath -Description "combined checksum manifest"
+        $checksumSource = "combined checksum manifest"
     }
 }
 
 # 6. Verify checksum
 Write-Host "Verifying checksum..."
-$expectedHash = (Get-Content $checksumPath -Raw).Trim().Split(" ")[0]
+$expectedHash = Resolve-ExpectedHashFromChecksumFile -ChecksumPath $checksumPath -ArchiveName $archiveName
 $actualHash = (Get-FileHash $archivePath -Algorithm SHA256).Hash.ToLower()
 if ($expectedHash -ne $actualHash) {
     throw "Checksum mismatch! Expected: $expectedHash, Actual: $actualHash"
 }
-Write-Host "Checksum verified." -ForegroundColor Green
+Write-Host "Checksum verified using $checksumSource." -ForegroundColor Green
 
 # 7. Extract binary
 Write-Host "Extracting..."
