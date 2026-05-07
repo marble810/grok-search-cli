@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+          - rid: linux-x64
+            os: ubuntu-latest
+          - rid: osx-arm64
+            os: macos-latest
+          - rid: osx-x64
+            os: macos-latest
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish (Native AOT)
+        run: dotnet publish src/grok-search-cli/grok-search-cli.csproj
+          --configuration Release --runtime ${{ matrix.rid }} --self-contained
+          -p:PublishAot=true -p:StripSymbols=true -p:DebugType=None
+          -o publish/${{ matrix.rid }}
+
+      - name: Package archive (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd "publish/${{ matrix.rid }}"
+          tar czf "${{ github.workspace }}/grok-search-cli_${{ github.ref_name }}_${{ matrix.rid }}.tar.gz" \
+            grok-search-cli
+
+      - name: Package archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "publish/${{ matrix.rid }}/grok-search-cli.exe" `
+            -DestinationPath "${{ github.workspace }}/grok-search-cli_${{ github.ref_name }}_${{ matrix.rid }}.zip"
+
+      - name: Checksum (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd "publish/${{ matrix.rid }}"
+          sha256sum grok-search-cli > "${{ github.workspace }}/grok-search-cli_${{ github.ref_name }}_${{ matrix.rid }}.sha256"
+
+      - name: Checksum (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash "publish/${{ matrix.rid }}/grok-search-cli.exe" -Algorithm SHA256).Hash.ToLower()
+          "$hash  grok-search-cli.exe" | Out-File -Encoding ASCII `
+            "${{ github.workspace }}/grok-search-cli_${{ github.ref_name }}_${{ matrix.rid }}.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: assets-${{ matrix.rid }}
+          path: |
+            grok-search-cli_${{ github.ref_name }}_*
+          retention-days: 1
+
+  release:
+    name: Attach to Release
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: assets-*
+          merge-multiple: true
+
+      - name: List downloaded assets
+        run: ls -la
+
+      - name: Generate combined checksums
+        run: |
+          VERSION="${{ github.ref_name }}"
+          cat grok-search-cli_${VERSION}_*.sha256 > checksums_${VERSION}.txt
+          echo "Combined checksums:"
+          cat checksums_${VERSION}.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            grok-search-cli_${{ github.ref_name }}_*
+            checksums_${{ github.ref_name }}.txt

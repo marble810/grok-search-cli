@@ -1,7 +1,9 @@
-## Requirements
+## Purpose
 
+Define the JSON stdout contract for successful search execution and the stderr/exit-code behavior for diagnostics.
+## Requirements
 ### Requirement: Successful execution writes one JSON result to stdout
-On successful execution, the CLI SHALL write exactly one JSON document to stdout and SHALL keep stdout free of incidental logs.
+On successful search execution, the CLI SHALL write exactly one JSON document to stdout and SHALL keep stdout free of incidental logs.
 
 #### Scenario: Successful web or X search
 - **WHEN** the search request succeeds
@@ -9,7 +11,7 @@ On successful execution, the CLI SHALL write exactly one JSON document to stdout
 - **THEN** the JSON document includes the selected `tool`, the `model`, the final `answer`, and a `citations` array
 
 #### Scenario: Upstream response includes an identifier
-- **WHEN** xAI returns a response identifier for a successful request
+- **WHEN** xAI returns a response identifier for a successful search request
 - **THEN** the CLI includes that identifier in the JSON result as response metadata
 
 ### Requirement: Diagnostics are separated from results
@@ -33,3 +35,4 @@ The first release SHALL return a completed JSON result only after the search inv
 #### Scenario: Standard invocation completes
 - **WHEN** an agent runs the search command without any future stream-specific option
 - **THEN** the CLI waits for the full xAI response before writing the JSON result to stdout
+
