@@ -6,13 +6,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$repoRoot = $PSScriptRoot
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 $sessionRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("grok-search-cli-local-session-" + [System.Guid]::NewGuid().ToString("n"))
 $assetDir = Join-Path $sessionRoot "assets"
 $installDir = Join-Path $sessionRoot "bin"
-$packageScript = Join-Path $repoRoot "package-local-release.ps1"
-$installScript = Join-Path $repoRoot "install.ps1"
-$uninstallScript = Join-Path $repoRoot "uninstall.ps1"
+$packageScript = Join-Path $repoRoot "tests/scripts/package-local-release.ps1"
+$installScript = Join-Path $repoRoot "scripts/install.ps1"
+$uninstallScript = Join-Path $repoRoot "scripts/uninstall.ps1"
 
 Write-Host "Preparing local grok-search-cli test session..." -ForegroundColor Cyan
 Write-Host "Session root: $sessionRoot" -ForegroundColor Green

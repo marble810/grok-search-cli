@@ -10,20 +10,20 @@ no .NET SDK or repository clone is required.
 
 ```powershell
 # Latest release
-iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/install.ps1) }"
+iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/install.ps1) }"
 
 # Specific version
-iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/install.ps1) }" -Version v1.0.0
+iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/install.ps1) }" -Version v1.0.0
 ```
 
 ### Linux / macOS (Bash)
 
 ```bash
 # Latest release
-curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/install.sh | bash
 
 # Specific version
-curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/install.sh | bash -s -- --version v1.0.0
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/install.sh | bash -s -- --version v1.0.0
 ```
 
 ## Manual Install
@@ -91,10 +91,10 @@ Re-run the installer with the desired version:
 
 ```bash
 # Installs the latest version, replacing any existing install
-curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/install.sh | bash
 
 # Install a specific version
-curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/install.sh | bash -s -- --version v1.1.0
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/install.sh | bash -s -- --version v1.1.0
 ```
 
 The installer places the binary in the same user-scoped location, replacing
@@ -109,20 +109,20 @@ the same user-scoped location used during installation.
 
 ```powershell
 # Default install directory
-iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/uninstall.ps1) }"
+iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/uninstall.ps1) }"
 
 # Custom install directory
-iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/uninstall.ps1) }" -InstallDir D:\tools\grok-search-cli
+iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/uninstall.ps1) }" -InstallDir D:\tools\grok-search-cli
 ```
 
 ### Linux / macOS (Bash)
 
 ```bash
 # Default install directory
-curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/uninstall.sh | bash
 
 # Custom install directory
-curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/uninstall.sh | bash -s -- --dir /tmp/grok-test
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/uninstall.sh | bash -s -- --dir /tmp/grok-test
 ```
 
 The uninstallers remove only installer-managed CLI files. If the install

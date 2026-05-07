@@ -2,11 +2,11 @@
 
 grok-search-cli uses **GitHub Releases** as its only supported distribution
 surface for precompiled binaries. Each tagged release publishes platform-specific
-archives and checksums consumed by the [PowerShell](install.ps1) and
-[Bash](install.sh) installers.
+archives and checksums consumed by the [PowerShell](scripts/install.ps1) and
+[Bash](scripts/install.sh) installers.
 
-The supported lifecycle also includes the repo-root [PowerShell](uninstall.ps1)
-and [Bash](uninstall.sh) uninstallers. Those uninstallers remove only the
+The supported lifecycle also includes the [PowerShell](scripts/uninstall.ps1)
+and [Bash](scripts/uninstall.sh) uninstallers. Those uninstallers remove only the
 installer-managed CLI files, leave credentials untouched, and may require manual
 PATH cleanup if the install directory was added to a shell profile or User PATH.
 

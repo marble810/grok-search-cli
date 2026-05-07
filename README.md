@@ -13,13 +13,13 @@
 ### Windows (PowerShell)
 
 ```powershell
-iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/install.ps1) }"
+iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/install.ps1) }"
 ```
 
 ### Linux / macOS (Bash)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/install.sh | bash
 ```
 
 安装完成后，配置 xAI API Key：
@@ -145,13 +145,13 @@ A command-line tool for searching the web and X (Twitter) via the xAI API. Retur
 ### Windows (PowerShell)
 
 ```powershell
-iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/install.ps1) }"
+iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/install.ps1) }"
 ```
 
 ### Linux / macOS (Bash)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/install.sh | bash
 ```
 
 After installation, configure your xAI API key:
