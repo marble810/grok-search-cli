@@ -85,6 +85,59 @@ iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli
 - [ ] 输出明确说明 "grok-search-cli does NOT collect API keys during installation"
 - [ ] 输出指引用户安装后运行 `grok-search-cli auth login`
 
+### 1.1.7 Bash 卸载器：默认目录卸载
+
+**前提**: 已通过 Bash 安装器在默认目录安装。
+
+**WHEN**: 运行
+```bash
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/uninstall.sh | bash
+```
+
+**THEN**:
+- [ ] 输出包含 `Install target: ~/.grok-search-cli/bin` 对应的实际目录
+- [ ] 输出包含已删除的 `grok-search-cli` 路径，或在重复执行时说明没有受管文件可删除
+- [ ] 默认安装目录中的 `grok-search-cli` 二进制被移除
+- [ ] 输出包含 PATH 后续清理提示或说明当前 PATH 未检测到该目录
+- [ ] 输出明确说明不会修改 `XAI_API_KEY`、`.env` 或 auth-managed credential storage
+
+### 1.1.8 Bash 卸载器：自定义目录与重复执行
+
+**前提**: 已在 `/tmp/grok-test` 安装，且目录中额外放置了非 CLI 文件。
+
+**WHEN**: 运行
+```bash
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/uninstall.sh | bash -s -- --dir /tmp/grok-test
+```
+
+**THEN**:
+- [ ] 输出包含 `Install target: /tmp/grok-test`
+- [ ] `grok-search-cli` 二进制被移除
+- [ ] 非 CLI 文件仍保留，目录不会被递归删除
+- [ ] 再次执行同一条卸载命令时退出成功
+- [ ] 第二次执行输出说明没有受管文件可删除
+
+**清理**:
+```bash
+rm -rf /tmp/grok-test
+```
+
+### 1.1.9 PowerShell 卸载器：默认目录与边界提示
+
+**前提**: 已通过 PowerShell 安装器在默认目录安装。
+
+**WHEN**: 在 Windows PowerShell 中运行
+```powershell
+iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/uninstall.ps1) }"
+```
+
+**THEN**:
+- [ ] 输出包含默认安装目录 `$env:LOCALAPPDATA\grok-search-cli\bin`
+- [ ] `grok-search-cli.exe` 被移除
+- [ ] 如果目录中仍有非 CLI 文件，则输出说明目录被保留
+- [ ] 输出包含 User PATH 后续清理提示或说明当前未检测到 PATH 项
+- [ ] 输出明确说明不会修改 `XAI_API_KEY`、`.env` 或 auth-managed credential storage
+
 ---
 
 ## 1.2 Auth Login 测试

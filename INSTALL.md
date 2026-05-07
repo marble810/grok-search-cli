@@ -99,3 +99,40 @@ curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/inst
 
 The installer places the binary in the same user-scoped location, replacing
 the previous version.
+
+## Uninstalling
+
+Use the supported uninstall scripts to remove the installer-managed binary from
+the same user-scoped location used during installation.
+
+### Windows (PowerShell)
+
+```powershell
+# Default install directory
+iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/uninstall.ps1) }"
+
+# Custom install directory
+iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/uninstall.ps1) }" -InstallDir D:\tools\grok-search-cli
+```
+
+### Linux / macOS (Bash)
+
+```bash
+# Default install directory
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/uninstall.sh | bash
+
+# Custom install directory
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/uninstall.sh | bash -s -- --dir /tmp/grok-test
+```
+
+The uninstallers remove only installer-managed CLI files. If the install
+directory still contains unrelated files, it is left in place.
+
+The uninstallers do **not**:
+- remove credentials configured through `XAI_API_KEY`
+- delete `.env` files
+- delete auth-managed credential storage outside the install directory
+- edit your PATH automatically
+
+After uninstalling, remove any PATH entry you added manually if you no longer
+want the install directory referenced by your shell or User PATH.

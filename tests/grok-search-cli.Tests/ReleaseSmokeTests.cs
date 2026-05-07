@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace XaiSearchCli.Tests;
@@ -223,5 +224,194 @@ public class ReleaseSmokeTests
             File.Exists(Path.Combine(testDirMonoRepo, "install.ps1")) ||
             bashExists || psExists,
             "Install scripts should exist in the repository root");
+    }
+
+    [Fact]
+    public void UninstallScripts_Exist()
+    {
+        Assert.True(File.Exists(ResolveRepoFile("uninstall.sh")));
+        Assert.True(File.Exists(ResolveRepoFile("uninstall.ps1")));
+    }
+
+    [Fact]
+    public void UninstallScript_Bash_HasDirectoryOverrideSupport()
+    {
+        var content = File.ReadAllText(ResolveRepoFile("uninstall.sh"));
+
+        Assert.Contains("--dir", content);
+        Assert.Contains("Usage:", content);
+    }
+
+    [Fact]
+    public void UninstallScript_PowerShell_HasInstallDirSupport()
+    {
+        var content = File.ReadAllText(ResolveRepoFile("uninstall.ps1"));
+
+        Assert.Contains("[string]$InstallDir", content);
+        Assert.Contains(".\\uninstall.ps1 -InstallDir", content);
+    }
+
+    [Fact]
+    public void UninstallScripts_ReportCleanupBoundary()
+    {
+        var bashContent = File.ReadAllText(ResolveRepoFile("uninstall.sh"));
+        var powerShellContent = File.ReadAllText(ResolveRepoFile("uninstall.ps1"));
+
+        Assert.Contains("XAI_API_KEY", bashContent);
+        Assert.Contains(".env", bashContent);
+        Assert.Contains("auth-managed storage", bashContent);
+        Assert.Contains("PATH", bashContent);
+
+        Assert.Contains("XAI_API_KEY", powerShellContent);
+        Assert.Contains(".env", powerShellContent);
+        Assert.Contains("auth-managed storage", powerShellContent);
+        Assert.Contains("PATH", powerShellContent);
+    }
+
+    [Fact]
+    public void UninstallScript_CurrentPlatform_IsIdempotentAndBounded()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            ValidatePowerShellUninstallBehavior();
+            return;
+        }
+
+        ValidateBashUninstallBehavior();
+    }
+
+    private static string ResolveRepoFile(string fileName)
+    {
+        var searchPaths = new[]
+        {
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", fileName),
+            Path.Combine(Directory.GetCurrentDirectory(), fileName),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "..", fileName),
+        };
+
+        var resolved = searchPaths.FirstOrDefault(File.Exists);
+        Assert.NotNull(resolved);
+        return resolved!;
+    }
+
+    private static (int ExitCode, string StandardOutput, string StandardError) RunProcess(
+        string fileName,
+        string arguments,
+        string? workingDirectory = null)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = fileName,
+            Arguments = arguments,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            WorkingDirectory = workingDirectory ?? Directory.GetCurrentDirectory(),
+        };
+
+        using var process = Process.Start(startInfo);
+        Assert.NotNull(process);
+
+        var standardOutput = process.StandardOutput.ReadToEnd();
+        var standardError = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+
+        return (process.ExitCode, standardOutput, standardError);
+    }
+
+    private static void ValidatePowerShellUninstallBehavior()
+    {
+        var scriptPath = ResolveRepoFile("uninstall.ps1");
+        var tempRoot = Path.Combine(Path.GetTempPath(), "grok-search-cli-uninstall-ps", Guid.NewGuid().ToString("n"));
+        var installDir = Path.Combine(tempRoot, "bin");
+        var managedBinary = Path.Combine(installDir, "grok-search-cli.exe");
+        var nonManagedFile = Path.Combine(installDir, "keep.txt");
+        var credentialFile = Path.Combine(tempRoot, "outside", "credentials.txt");
+
+        Directory.CreateDirectory(installDir);
+        Directory.CreateDirectory(Path.GetDirectoryName(credentialFile)!);
+        File.WriteAllText(managedBinary, "stub");
+        File.WriteAllText(nonManagedFile, "keep");
+        File.WriteAllText(credentialFile, "credential");
+
+        try
+        {
+            var firstRun = RunProcess(
+                "pwsh",
+                $"-NoProfile -File \"{scriptPath}\" -InstallDir \"{installDir}\"");
+
+            Assert.Equal(0, firstRun.ExitCode);
+            Assert.False(File.Exists(managedBinary));
+            Assert.True(File.Exists(nonManagedFile));
+            Assert.True(File.Exists(credentialFile));
+            Assert.True(Directory.Exists(installDir));
+            Assert.Contains("Install directory left in place because it still contains non-managed files.", firstRun.StandardOutput);
+            Assert.Contains("Credential configuration via XAI_API_KEY, .env files, or auth-managed storage was not modified.", firstRun.StandardOutput);
+            Assert.True(
+                firstRun.StandardOutput.Contains("No current User PATH entry was detected for the install directory.") ||
+                firstRun.StandardOutput.Contains("NOTE: The install directory may still be present in your User PATH."));
+
+            var secondRun = RunProcess(
+                "pwsh",
+                $"-NoProfile -File \"{scriptPath}\" -InstallDir \"{installDir}\"");
+
+            Assert.Equal(0, secondRun.ExitCode);
+            Assert.Contains("No managed grok-search-cli files were present to remove.", secondRun.StandardOutput);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+    }
+
+    private static void ValidateBashUninstallBehavior()
+    {
+        var scriptPath = ResolveRepoFile("uninstall.sh");
+        var tempRoot = Path.Combine(Path.GetTempPath(), "grok-search-cli-uninstall-sh", Guid.NewGuid().ToString("n"));
+        var installDir = Path.Combine(tempRoot, "bin");
+        var managedBinary = Path.Combine(installDir, "grok-search-cli");
+        var nonManagedFile = Path.Combine(installDir, "keep.txt");
+        var credentialFile = Path.Combine(tempRoot, "outside", "credentials.txt");
+
+        Directory.CreateDirectory(installDir);
+        Directory.CreateDirectory(Path.GetDirectoryName(credentialFile)!);
+        File.WriteAllText(managedBinary, "stub");
+        File.WriteAllText(nonManagedFile, "keep");
+        File.WriteAllText(credentialFile, "credential");
+
+        try
+        {
+            var firstRun = RunProcess(
+                "bash",
+                $"\"{scriptPath}\" --dir \"{installDir}\"");
+
+            Assert.Equal(0, firstRun.ExitCode);
+            Assert.False(File.Exists(managedBinary));
+            Assert.True(File.Exists(nonManagedFile));
+            Assert.True(File.Exists(credentialFile));
+            Assert.True(Directory.Exists(installDir));
+            Assert.Contains("Install directory left in place because it still contains non-managed files.", firstRun.StandardOutput);
+            Assert.Contains("Credential configuration via XAI_API_KEY, .env files, or auth-managed storage was not modified.", firstRun.StandardOutput);
+            Assert.True(
+                firstRun.StandardOutput.Contains("No current PATH entry was detected for the install directory.") ||
+                firstRun.StandardOutput.Contains("NOTE: The install directory may still be present in your PATH or shell profile."));
+
+            var secondRun = RunProcess(
+                "bash",
+                $"\"{scriptPath}\" --dir \"{installDir}\"");
+
+            Assert.Equal(0, secondRun.ExitCode);
+            Assert.Contains("No managed grok-search-cli files were present to remove.", secondRun.StandardOutput);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
     }
 }
