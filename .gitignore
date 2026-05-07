@@ -5,4 +5,9 @@ bin/
 obj/
 TestResults/
 .vs/
+.vscode/
 .claude/
+*.user
+*.suo
+*.DS_Store
+Thumbs.db
