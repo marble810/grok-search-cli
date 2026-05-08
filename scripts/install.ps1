@@ -167,7 +167,7 @@ function Resolve-ExpectedHashFromChecksumFile {
     $lines = Get-Content -LiteralPath $ChecksumPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     foreach ($line in $lines) {
         if ($line -match '^(?<hash>[A-Fa-f0-9]{64})\s+[* ]?(?<name>.+)$') {
-            $name = $Matches.name.Trim()
+            $name = Split-Path $Matches.name.Trim() -Leaf
             if ($name -eq $ArchiveName) {
                 return $Matches.hash.ToLower()
             }

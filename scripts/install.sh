@@ -64,6 +64,7 @@ resolve_expected_hash() {
             hash=$1
             $1=""
             sub(/^[[:space:]]+[*]?/, "", $0)
+            sub(/.*\//, "", $0)
             if ($0 == archive_name && hash ~ /^[A-Fa-f0-9]{64}$/) {
                 print tolower(hash)
                 found=1
