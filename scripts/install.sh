@@ -80,6 +80,101 @@ resolve_expected_hash() {
 }
 
 # ---------------------------------------------------------------------------
+# Shell detection and PATH management
+# ---------------------------------------------------------------------------
+
+detect_shell() {
+    local shell_name=""
+
+    # Prefer the parent process name to catch cases like 'bash' inside zsh
+    if command -v ps >/dev/null 2>&1; then
+        shell_name="$(ps -p "$PPID" -o comm= 2>/dev/null || true)"
+        shell_name="${shell_name##*/}"
+    fi
+
+    # Fall back to $SHELL if parent process detection failed
+    if [[ -z "$shell_name" && -n "${SHELL:-}" ]]; then
+        shell_name="${SHELL##*/}"
+    fi
+
+    # Normalise detected shell
+    case "${shell_name}" in
+        bash|zsh|fish)
+            echo "$shell_name"
+            return 0
+            ;;
+        sh|dash|ksh)
+            # Bourne-derived shells default to bash profile
+            echo "bash"
+            return 0
+            ;;
+        *)
+            echo "bash"
+            return 0
+            ;;
+    esac
+}
+
+get_profile_path() {
+    local shell_name="$1"
+    local profile_path=""
+
+    case "$shell_name" in
+        bash)
+            profile_path="${HOME}/.bashrc"
+            ;;
+        zsh)
+            profile_path="${HOME}/.zshrc"
+            ;;
+        fish)
+            profile_path="${HOME}/.config/fish/config.fish"
+            mkdir -p "$(dirname "$profile_path")"
+            ;;
+    esac
+
+    echo "$profile_path"
+}
+
+backup_profile() {
+    local profile_path="$1"
+    local backup_path="${profile_path}.grok-search-cli-backup-$(date +%Y%m%d%H%M%S)"
+
+    if [[ -f "$profile_path" ]]; then
+        cp "$profile_path" "$backup_path"
+        echo "Backup created: ${backup_path}"
+    fi
+}
+
+add_to_path() {
+    local install_dir="$1"
+    local shell_name
+    local profile_path
+
+    shell_name="$(detect_shell)"
+    profile_path="$(get_profile_path "$shell_name")"
+
+    # Check if the sentinel block already exists
+    if [[ -f "$profile_path" ]] && grep -q "^# grok-search-cli PATH begin" "$profile_path" 2>/dev/null; then
+        echo "PATH entry already configured in ${profile_path}."
+        return 0
+    fi
+
+    backup_profile "$profile_path"
+
+    cat >> "$profile_path" <<-EOF
+
+# grok-search-cli PATH begin
+if [[ ":\$PATH:" != *:"${install_dir}":* ]]; then
+    export PATH="${install_dir}:\$PATH"
+fi
+# grok-search-cli PATH end
+EOF
+
+    echo "Added grok-search-cli to PATH in ${profile_path}."
+    echo "Restart your terminal or run 'source ${profile_path}' to apply."
+}
+
+# ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 REPO="marble810/grok-search-cli"
@@ -302,28 +397,9 @@ echo ""
 echo "grok-search-cli ${VERSION} installed to: ${INSTALL_DIR}"
 
 # ---------------------------------------------------------------------------
-# PATH guidance
+# PATH configuration
 # ---------------------------------------------------------------------------
-case ":${PATH}:" in
-    *":${INSTALL_DIR}:"*)
-        echo "Install directory is already in your PATH."
-        ;;
-    *)
-        echo ""
-        echo "NOTE: Add the install directory to your PATH. Run one of these commands:" >&2
-        echo ""
-        echo "  # bash/zsh"
-        echo "  echo 'export PATH=\"${INSTALL_DIR}:\$PATH\"' >> ~/.bashrc"
-        echo "  source ~/.bashrc"
-        echo ""
-        echo "  # zsh"
-        echo "  echo 'export PATH=\"${INSTALL_DIR}:\$PATH\"' >> ~/.zshrc"
-        echo "  source ~/.zshrc"
-        echo ""
-        echo "  # fish"
-        echo "  fish_add_path ${INSTALL_DIR}"
-        ;;
-esac
+add_to_path "$INSTALL_DIR"
 
 # ---------------------------------------------------------------------------
 # Credential setup handoff (no secrets collected during install)

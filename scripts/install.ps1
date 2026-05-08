@@ -177,6 +177,29 @@ function Resolve-ExpectedHashFromChecksumFile {
     throw "Checksum entry for '$ArchiveName' not found in $ChecksumPath"
 }
 
+function Add-GrokToUserPath {
+    param([string]$InstallDir)
+
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $normalizedDir = $InstallDir.TrimEnd('\')
+
+    if ($userPath) {
+        $entries = $userPath.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries)
+        $normalizedEntries = $entries | ForEach-Object { $_.Trim().TrimEnd('\') }
+        if ($normalizedDir -in $normalizedEntries) {
+            Write-Host "Install directory is already in your User PATH." -ForegroundColor Green
+            return
+        }
+        $newPath = "$userPath;$normalizedDir"
+    }
+    else {
+        $newPath = $normalizedDir
+    }
+
+    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+    Write-Host "Added grok-search-cli to User PATH." -ForegroundColor Green
+}
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -286,21 +309,10 @@ catch {
     throw "Failed to extract binary: $_"
 }
 
-# 8. Report and PATH guidance
+# 8. Report and PATH configuration
 Write-Host ""
 Write-Host "grok-search-cli $Version installed to: $InstallDir" -ForegroundColor Cyan
-
-$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($userPath -and $userPath.Contains($InstallDir)) {
-    Write-Host "Install directory is already in your PATH." -ForegroundColor Green
-}
-else {
-    Write-Host ""
-    Write-Host "NOTE: Add the install directory to your PATH to use 'grok-search-cli' from any terminal:" -ForegroundColor Yellow
-    Write-Host "  [Environment]::SetEnvironmentVariable(""Path"", ""`$env:Path;$InstallDir"", ""User"")" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "Or add it manually via: System Properties -> Environment Variables -> User PATH" -ForegroundColor Yellow
-}
+Add-GrokToUserPath -InstallDir $InstallDir
 
 # 9. Credential setup handoff (no secrets collected during install)
 Write-Host ""

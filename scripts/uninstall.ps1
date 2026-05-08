@@ -67,6 +67,117 @@ function Test-UserPathContains {
     return $false
 }
 
+function Remove-GrokFromUserPath {
+    param([string]$InstallDir)
+
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    if (-not $userPath) {
+        Write-Host "No grok-search-cli PATH entry was present to remove." -ForegroundColor Green
+        return
+    }
+
+    $normalizedDir = $InstallDir.TrimEnd('\')
+    $entries = $userPath.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries)
+    $filtered = $entries | Where-Object { $_.Trim().TrimEnd('\') -ne $normalizedDir }
+
+    if ($filtered.Count -eq $entries.Count) {
+        Write-Host "No grok-search-cli PATH entry was present to remove." -ForegroundColor Green
+        return
+    }
+
+    $newPath = if ($filtered.Count -gt 0) { $filtered -join ';' } else { $null }
+    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+    Write-Host "Removed grok-search-cli from User PATH." -ForegroundColor Cyan
+
+    # Check if the directory still appears in the process-level PATH (residual)
+    $currentPath = [Environment]::GetEnvironmentVariable("Path", "Process")
+    if ($currentPath -and $currentPath.Contains($InstallDir)) {
+        Write-Host "NOTE: The install directory may still be present in your current session PATH." -ForegroundColor Yellow
+        Write-Host "      Start a new terminal session or update your PATH manually." -ForegroundColor Yellow
+    }
+}
+
+function Get-CredentialStorePath {
+    $configHome = if ($env:XDG_CONFIG_HOME) { $env:XDG_CONFIG_HOME } else { Join-Path $env:USERPROFILE ".config" }
+    return Join-Path $configHome "grok-search-cli" "credentials.env"
+}
+
+function Invoke-CredentialCleanup {
+    $credFiles = @()
+
+    # Check managed credential store
+    $credStore = Get-CredentialStorePath
+    if (Test-Path -LiteralPath $credStore -PathType Leaf) {
+        $credFiles += @{ Type = "managed"; Path = $credStore }
+    }
+
+    # Check $env:USERPROFILE\.env for XAI_API_KEY
+    $homeEnv = Join-Path $env:USERPROFILE ".env"
+    if (Test-Path -LiteralPath $homeEnv -PathType Leaf) {
+        $content = Get-Content -LiteralPath $homeEnv -Raw -ErrorAction SilentlyContinue
+        if ($content -and $content.Contains("XAI_API_KEY")) {
+            $credFiles += @{ Type = "home"; Path = $homeEnv }
+        }
+    }
+
+    # Check current directory .env for XAI_API_KEY
+    $cwdEnv = Join-Path (Get-Location) ".env"
+    if (Test-Path -LiteralPath $cwdEnv -PathType Leaf) {
+        $content = Get-Content -LiteralPath $cwdEnv -Raw -ErrorAction SilentlyContinue
+        if ($content -and $content.Contains("XAI_API_KEY")) {
+            $credFiles += @{ Type = "cwd"; Path = $cwdEnv }
+        }
+    }
+
+    if ($credFiles.Count -eq 0) {
+        Write-Host "No API key files (.env or credential store) were found." -ForegroundColor Green
+        return
+    }
+
+    Write-Host ""
+    Write-Host "=== Credential Cleanup ===" -ForegroundColor Cyan
+
+    foreach ($entry in $credFiles) {
+        Write-Host ""
+        switch ($entry.Type) {
+            "managed" {
+                Write-Host "Managed credential store detected: $($entry.Path)" -ForegroundColor Yellow
+                $response = Read-Host "Clear managed credentials (equivalent to 'grok-search-cli auth logout')? [y/N]"
+                if ($response -match '^[Yy]') {
+                    Remove-Item -LiteralPath $entry.Path -Force
+                    Write-Host "Managed credential store cleared." -ForegroundColor Green
+                } else {
+                    Write-Host "Skipped. Clear manually with: grok-search-cli auth logout" -ForegroundColor Yellow
+                }
+            }
+            "home" {
+                Write-Host "API key file detected: $($entry.Path)" -ForegroundColor Yellow
+                $response = Read-Host "Delete this file? [y/N]"
+                if ($response -match '^[Yy]') {
+                    Remove-Item -LiteralPath $entry.Path -Force
+                    Write-Host "Deleted: $($entry.Path)" -ForegroundColor Green
+                } else {
+                    Write-Host "Skipped." -ForegroundColor Yellow
+                }
+            }
+            "cwd" {
+                Write-Host "API key file detected: $($entry.Path)" -ForegroundColor Yellow
+                $response = Read-Host "Delete this file? [y/N]"
+                if ($response -match '^[Yy]') {
+                    Remove-Item -LiteralPath $entry.Path -Force
+                    Write-Host "Deleted: $($entry.Path)" -ForegroundColor Green
+                } else {
+                    Write-Host "Skipped." -ForegroundColor Yellow
+                }
+            }
+        }
+    }
+
+    Write-Host ""
+    Write-Host "Note: XAI_API_KEY environment variable (if set) is managed outside this script." -ForegroundColor Yellow
+    Write-Host "      To unset it, remove it from your system or user environment variables." -ForegroundColor Yellow
+}
+
 Write-Host "=== grok-search-cli Uninstaller ===" -ForegroundColor Cyan
 Write-Host ""
 
@@ -112,13 +223,8 @@ elseif (Test-Path $InstallDir -PathType Container) {
 }
 
 Write-Host ""
-if (Test-UserPathContains -TargetDir $InstallDir) {
-    Write-Host "NOTE: The install directory may still be present in your User PATH. Remove '$InstallDir' manually if you no longer want that entry." -ForegroundColor Yellow
-}
-else {
-    Write-Host "No current User PATH entry was detected for the install directory." -ForegroundColor Green
-}
+Remove-GrokFromUserPath -InstallDir $InstallDir
 
-Write-Host "Credential configuration via XAI_API_KEY, .env files, or auth-managed storage was not modified." -ForegroundColor Yellow
+Invoke-CredentialCleanup
 Write-Host ""
 Write-Host "Uninstall complete!" -ForegroundColor Cyan
