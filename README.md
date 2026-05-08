@@ -34,12 +34,29 @@ grok-search-cli auth login
 
 ## 卸载
 
-```bash
-# 删除安装目录
-rm -rf ~/.grok-search-cli
+使用卸载脚本移除已安装的 CLI 文件（不影响凭证数据）：
+
+### Windows (PowerShell)
+
+```powershell
+iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/uninstall.ps1) }"
 ```
 
-如在 shell 配置文件中添加过 PATH，请移除对应行（`~/.bashrc`、`~/.zshrc` 等）。
+### Linux / macOS (Bash)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/uninstall.sh | bash
+```
+
+如果使用了自定义安装目录，传入对应参数：
+
+```powershell
+# Windows
+iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/uninstall.ps1) }" -InstallDir D:\tools\grok-search-cli
+
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/uninstall.sh | bash -s -- --dir /path/to/install
+```
 
 ## 使用
 
@@ -175,12 +192,29 @@ See [INSTALL.md](INSTALL.md) for full installation options and checksum verifica
 
 ## Uninstall
 
-```bash
-# Remove installed files
-rm -rf ~/.grok-search-cli
+Use the supported uninstall scripts to remove the installer-managed CLI files (credentials are not affected):
+
+### Windows (PowerShell)
+
+```powershell
+iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/uninstall.ps1) }"
 ```
 
-If you added the install directory to your PATH in a shell config file, remove the corresponding line (`~/.bashrc`, `~/.zshrc`, etc.).
+### Linux / macOS (Bash)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/uninstall.sh | bash
+```
+
+If you used a custom install directory, pass it through:
+
+```powershell
+# Windows
+iex "& { $(iwr -useb https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/uninstall.ps1) }" -InstallDir D:\tools\grok-search-cli
+
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/marble810/grok-search-cli/main/scripts/uninstall.sh | bash -s -- --dir /path/to/install
+```
 
 ## Usage
 
