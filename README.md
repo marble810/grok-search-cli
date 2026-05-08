@@ -30,7 +30,16 @@ grok-search-cli auth login
 
 或直接设置环境变量 `XAI_API_KEY`。
 
-完整安装选项、校验和及卸载说明见 [INSTALL.md](INSTALL.md)。
+完整安装选项及校验和说明见 [INSTALL.md](INSTALL.md)。
+
+## 卸载
+
+```bash
+# 删除安装目录
+rm -rf ~/.grok-search-cli
+```
+
+如在 shell 配置文件中添加过 PATH，请移除对应行（`~/.bashrc`、`~/.zshrc` 等）。
 
 ## 使用
 
@@ -162,7 +171,16 @@ grok-search-cli auth login
 
 Or set the `XAI_API_KEY` environment variable directly.
 
-See [INSTALL.md](INSTALL.md) for full installation options, checksum verification, and uninstall instructions.
+See [INSTALL.md](INSTALL.md) for full installation options and checksum verification.
+
+## Uninstall
+
+```bash
+# Remove installed files
+rm -rf ~/.grok-search-cli
+```
+
+If you added the install directory to your PATH in a shell config file, remove the corresponding line (`~/.bashrc`, `~/.zshrc`, etc.).
 
 ## Usage
 
